@@ -1,5 +1,6 @@
 import logging
 import os
+TOKEN = os.getenv("TOKEN")
 import datetime
 from telegram import (
     Update,
@@ -19,7 +20,6 @@ from telegram.ext import (
 from openpyxl import Workbook, load_workbook
 
 # ================== SOZLAMALAR ==================
-TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_USERNAME = "@kh_journey"   # majburiy obuna kanali
 EXCEL_FILE = "data.xlsx"
 
