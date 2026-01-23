@@ -30,6 +30,9 @@ SHEET_NAME = os.getenv("SHEET_NAME")
 GOOGLE_CREDS = os.getenv("GOOGLE_CREDS")
 
 if not all([TOKEN, SPREADSHEET_NAME, SHEET_NAME, GOOGLE_CREDS]):
+    print("BOT_TOKEN =", os.getenv("BOT_TOKEN"))
+    print("SHEET_NAME =", os.getenv("SHEET_NAME"))
+    print("GOOGLE_CREDENTIALS bor-mi =", bool(os.getenv("GOOGLE_CREDENTIALS")))
     raise RuntimeError("Environment variables to‘liq emas!")
 
 # ================== LOG ==================
