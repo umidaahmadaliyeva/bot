@@ -1,6 +1,8 @@
-import os
 import logging
+import os
+import json
 import datetime
+
 from telegram import (
     Update,
     ReplyKeyboardRemove,
@@ -8,7 +10,6 @@ from telegram import (
     InlineKeyboardMarkup,
 )
 from telegram.ext import (
-    Application,
     ApplicationBuilder,
     CommandHandler,
     ContextTypes,
@@ -17,207 +18,140 @@ from telegram.ext import (
     CallbackQueryHandler,
     filters,
 )
-from openpyxl import Workbook, load_workbook
 
-# ================== SOZLAMALAR ==================
+import gspread
+from google.oauth2.service_account import Credentials
+
+# ================== ENV ==================
 TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_USERNAME = "@kh_journey"   # majburiy obuna kanali
-EXCEL_FILE = "data.xlsx"
+CHANNEL_USERNAME = "@kh_journey"
+SPREADSHEET_NAME = os.getenv("SPREADSHEET_NAME")
+SHEET_NAME = os.getenv("SHEET_NAME")
+GOOGLE_CREDS = os.getenv("GOOGLE_CREDS")
 
-if not TOKEN:
-    raise ValueError("BOT_TOKEN environment o'zgaruvchisi topilmadi! Railway Variables bo'limiga qo'shing.")
+if not all([TOKEN, SPREADSHEET_NAME, SHEET_NAME, GOOGLE_CREDS]):
+    raise RuntimeError("Environment variables to‘liq emas!")
 
-# ================== LOGGING ==================
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
+# ================== LOG ==================
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ================== HOLATLAR ==================
+# ================== STATES ==================
 SCHOOL, CLASS_GRADE, FULL_NAME = range(3)
 
-# ================== KANALGA OBUNA TEKSHIRISH ==================
+# ================== GOOGLE SHEETS ==================
+def init_sheet():
+    creds_dict = json.loads(GOOGLE_CREDS)
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+    client = gspread.authorize(creds)
+    sheet = client.open(SPREADSHEET_NAME).worksheet(SHEET_NAME)
+    return sheet
+
+sheet = init_sheet()
+
+def save_to_sheet(data: dict):
+    sheet.append_row([
+        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        data["telegram_id"],
+        data.get("username", ""),
+        data["school"],
+        data["class_grade"],
+        data["full_name"],
+    ])
+
+# ================== SUB CHECK ==================
 async def check_subscription(user_id: int, bot) -> bool:
     try:
         member = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
-        return member.status in ["member", "administrator", "creator"]
-    except Exception as e:
-        logger.error(f"Obuna tekshirish xatosi: {e}")
+        return member.status in ("member", "administrator", "creator")
+    except:
         return False
 
-# ================== EXCELGA SAQLASH ==================
-def save_to_excel(data: dict):
-    try:
-        if not os.path.exists(EXCEL_FILE):
-            wb = Workbook()
-            ws = wb.active
-            ws.append([
-                "Vaqt", "Telegram ID", "Username",
-                "Maktab", "Sinf", "Ism Familiya"
-            ])
-        else:
-            wb = load_workbook(EXCEL_FILE)
-            ws = wb.active
-
-        ws.append([
-            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            data["telegram_id"],
-            data.get("username", "yo'q"),
-            data["school"],
-            data["class_grade"],
-            data["full_name"],
-        ])
-
-        wb.save(EXCEL_FILE)
-        logger.info(f"Ma'lumot saqlandi: {data['full_name']}")
-    except Exception as e:
-        logger.error(f"Excel saqlash xatosi: {e}")
-
-# ================== /START ==================
+# ================== START ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    user_id = user.id
 
-    is_subscribed = await check_subscription(user_id, context.bot)
-
-    if not is_subscribed:
+    if not await check_subscription(user.id, context.bot):
         keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton(
-                    text="📢 Kanalga obuna bo‘lish",
-                    url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}"
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text="✅ Tekshirish",
-                    callback_data="check_sub"
-                )
-            ]
+            [InlineKeyboardButton("📢 Kanalga obuna bo‘lish",
+                                  url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}")],
+            [InlineKeyboardButton("✅ Tekshirish", callback_data="check_sub")]
         ])
-
         await update.message.reply_text(
             "❗ Botdan foydalanish uchun avval kanalga obuna bo‘ling:",
             reply_markup=keyboard
         )
         return ConversationHandler.END
 
-    # Tozalash va boshlash
     context.user_data.clear()
-    context.user_data.update({
-        "telegram_id": user_id,
-        "username": user.username,
-    })
+    context.user_data["telegram_id"] = user.id
+    context.user_data["username"] = user.username
 
     await update.message.reply_text(
         "Siz qaysi maktab o‘quvchisisiz?",
-        reply_markup=ReplyKeyboardRemove(),
+        reply_markup=ReplyKeyboardRemove()
     )
     return SCHOOL
 
-# ================== CALLBACK: OBUNANI TEKSHIRISH ==================
+# ================== CALLBACK ==================
 async def check_sub_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    user = query.from_user
-    is_subscribed = await check_subscription(user.id, context.bot)
-
-    if not is_subscribed:
-        await query.message.reply_text(
-            "❌ Siz hali kanalga obuna bo‘lmagansiz.\n"
-            "Iltimos, obuna bo‘lib yana tekshiring."
-        )
+    if not await check_subscription(query.from_user.id, context.bot):
+        await query.message.reply_text("❌ Hali obuna bo‘lmagansiz.")
         return
 
     context.user_data.clear()
-    context.user_data.update({
-        "telegram_id": user.id,
-        "username": user.username,
-    })
+    context.user_data["telegram_id"] = query.from_user.id
+    context.user_data["username"] = query.from_user.username
 
     await query.message.reply_text(
-        "✅ Obuna muvaffaqiyatli tasdiqlandi!\n\n"
-        "Siz qaysi maktab o‘quvchisisiz?"
+        "✅ Obuna tasdiqlandi!\n\nSiz qaysi maktab o‘quvchisisiz?"
     )
+    return SCHOOL
 
-    # Suhbatni davom ettirish uchun holatni o'rnatish shart emas, chunki yangi start kabi
-    return SCHOOL   # agar conversation davom etishi kerak bo'lsa
-
-# ================== MAKTAB ==================
+# ================== STEPS ==================
 async def receive_school(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["school"] = update.message.text.strip()
     await update.message.reply_text("Siz nechinchi sinf o‘quvchisisiz?")
     return CLASS_GRADE
 
-# ================== SINF ==================
 async def receive_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["class_grade"] = update.message.text.strip()
     await update.message.reply_text("Ism va familiyangizni kiriting:")
     return FULL_NAME
 
-# ================== ISM FAMILIYA ==================
 async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["full_name"] = update.message.text.strip()
-
-    save_to_excel(context.user_data)
+    save_to_sheet(context.user_data)
 
     await update.message.reply_text(
-        "✅ Sizning ma’lumotlaringiz saqlandi.\n"
-        "Olimpiadada omad tilaymiz!"
+        "✅ Ma’lumotlaringiz saqlandi.\nOlimpiadada omad!"
     )
     return ConversationHandler.END
 
-# ================== BEKOR QILISH ==================
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Ro‘yxatdan o‘tish bekor qilindi.")
-    return ConversationHandler.END
-
-# ================== ASOSIY QISM ==================
+# ================== MAIN ==================
 def main():
-    logger.info("Bot ishga tushmoqda...")
+    app = ApplicationBuilder().token(TOKEN).build()
 
-    application = (
-        ApplicationBuilder()
-        .token(TOKEN)
-        .connect_timeout(30)
-        .read_timeout(30)
-        .write_timeout(30)
-        .get_updates_connect_timeout(30)
-        .build()
-    )
-
-    conv_handler = ConversationHandler(
+    conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
             SCHOOL: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_school)],
             CLASS_GRADE: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_class)],
             FULL_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_name)],
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
-        allow_reentry=True,  # qayta /start bosilsa davom etishi mumkin
+        fallbacks=[],
+        allow_reentry=True,
     )
 
-    application.add_handler(conv_handler)
-    application.add_handler(CallbackQueryHandler(check_sub_callback, pattern="^check_sub$"))
+    app.add_handler(conv)
+    app.add_handler(CallbackQueryHandler(check_sub_callback, pattern="check_sub"))
 
-    logger.info("Polling boshlanmoqda...")
-    application.run_polling(
-        allowed_updates=Update.ALL_TYPES,
-        drop_pending_updates=True,
-        poll_interval=0.5,
-        timeout=20,
-        bootstrap_retries=-1,   # cheksiz qayta urinish
-    )
+    logger.info("Bot ishga tushdi")
+    app.run_polling()
 
-
-if __name__ == "__main__":
-    try:
-        print("BOT_TOKEN mavjudmi?", bool(TOKEN))
-        print("Polling boshlanmoqda...")
-        main()
-    except Exception as e:
-        logger.error("Kritik xato:", exc_info=True)
-        print("KRITIK XATO:", str(e))
-        raise
+if __name__ == "__bot__":
+    bot()
