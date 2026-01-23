@@ -179,3 +179,13 @@ def main():
 
 if __name__ == "__bot__":
     bot()
+
+if __name__ == "__main__":
+    print("BOT_TOKEN mavjudmi?", TOKEN is not None)
+    print("Polling boshlanmoqda...")
+    try:
+        application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    except Exception as e:
+        print("Polling xatosi:", str(e))
+        import traceback
+        traceback.print_exc()
