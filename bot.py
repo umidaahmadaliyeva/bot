@@ -25,14 +25,16 @@ from google.oauth2.service_account import Credentials
 # ================== ENV ==================
 TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_USERNAME = "@kh_journey"
-SPREADSHEET_NAME = os.getenv("SPREADSHEET_NAME")
-SHEET_NAME = os.getenv("SHEET_NAME")
-GOOGLE_CREDS = os.getenv("GOOGLE_CREDS")
+
+SPREADSHEET_NAME = os.getenv("SPREADSHEET_NAME")  # Google Sheet nomi
+SHEET_NAME = os.getenv("SHEET_NAME")              # List (tab) nomi
+GOOGLE_CREDS = os.getenv("GOOGLE_CREDS")          # credentials.json (1 qator)
 
 if not all([TOKEN, SPREADSHEET_NAME, SHEET_NAME, GOOGLE_CREDS]):
-    print("BOT_TOKEN =", os.getenv("BOT_TOKEN"))
-    print("SHEET_NAME =", os.getenv("SHEET_NAME"))
-    print("GOOGLE_CREDENTIALS bor-mi =", bool(os.getenv("GOOGLE_CREDENTIALS")))
+    print("BOT_TOKEN =", TOKEN)
+    print("SPREADSHEET_NAME =", SPREADSHEET_NAME)
+    print("SHEET_NAME =", SHEET_NAME)
+    print("GOOGLE_CREDS bor-mi =", bool(GOOGLE_CREDS))
     raise RuntimeError("Environment variables to‘liq emas!")
 
 # ================== LOG ==================
@@ -48,8 +50,7 @@ def init_sheet():
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     client = gspread.authorize(creds)
-    sheet = client.open(SPREADSHEET_NAME).worksheet(SHEET_NAME)
-    return sheet
+    return client.open(SPREADSHEET_NAME).worksheet(SHEET_NAME)
 
 sheet = init_sheet()
 
@@ -68,7 +69,7 @@ async def check_subscription(user_id: int, bot) -> bool:
     try:
         member = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
         return member.status in ("member", "administrator", "creator")
-    except:
+    except Exception:
         return False
 
 # ================== START ==================
@@ -77,8 +78,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not await check_subscription(user.id, context.bot):
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📢 Kanalga obuna bo‘lish",
-                                  url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}")],
+            [InlineKeyboardButton(
+                "📢 Kanalga obuna bo‘lish",
+                url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}"
+            )],
             [InlineKeyboardButton("✅ Tekshirish", callback_data="check_sub")]
         ])
         await update.message.reply_text(
@@ -104,7 +107,7 @@ async def check_sub_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     if not await check_subscription(query.from_user.id, context.bot):
         await query.message.reply_text("❌ Hali obuna bo‘lmagansiz.")
-        return
+        return ConversationHandler.END
 
     context.user_data.clear()
     context.user_data["telegram_id"] = query.from_user.id
@@ -131,7 +134,7 @@ async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_to_sheet(context.user_data)
 
     await update.message.reply_text(
-        "✅ Ma’lumotlaringiz saqlandi.\nOlimpiadada omad!"
+        "✅ Ma’lumotlaringiz saqlandi.\nOlimpiadada omad! 🍀"
     )
     return ConversationHandler.END
 
@@ -153,7 +156,7 @@ def main():
     app.add_handler(conv)
     app.add_handler(CallbackQueryHandler(check_sub_callback, pattern="check_sub"))
 
-    logger.info("Bot ishga tushdi")
+    logger.info("Bot ishga tushdi 🚀")
     app.run_polling()
 
 if __name__ == "__bot__":
