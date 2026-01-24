@@ -1,6 +1,7 @@
 import logging
 import os
 import datetime
+import psycopg2
 
 from telegram import (
     Update,
@@ -18,14 +19,13 @@ from telegram.ext import (
     filters,
 )
 
-import psycopg2
-
 # ================== ENV ==================
 TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_USERNAME = "@kh_journey"
-DB_URL = os.getenv("DB_URL")  # Railway dagi PostgreSQL URL
 
-if not all([TOKEN, CHANNEL_USERNAME, DB_URL]):
+DB_URL = os.getenv("DB_URL")
+
+if not all([TOKEN, DB_URL]):
     print("BOT_TOKEN =", TOKEN)
     print("DB_URL =", DB_URL)
     raise RuntimeError("Environment variables to‘liq emas!")
@@ -37,12 +37,28 @@ logger = logging.getLogger(__name__)
 # ================== STATES ==================
 SCHOOL, CLASS_GRADE, FULL_NAME = range(3)
 
-# ================== DATABASE ==================
-conn = psycopg2.connect(DB_URL)
-cursor = conn.cursor()
+# ================== POSTGRES ==================
+def create_table_if_not_exists():
+    conn = psycopg2.connect(DB_URL)
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            telegram_id BIGINT NOT NULL,
+            username TEXT,
+            school TEXT,
+            class_grade TEXT,
+            full_name TEXT
+        );
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
 
 def save_to_db(data: dict):
-    cursor.execute("""
+    conn = psycopg2.connect(DB_URL)
+    cur = conn.cursor()
+    cur.execute("""
         INSERT INTO users (telegram_id, username, school, class_grade, full_name)
         VALUES (%s, %s, %s, %s, %s)
     """, (
@@ -50,9 +66,11 @@ def save_to_db(data: dict):
         data.get("username", ""),
         data["school"],
         data["class_grade"],
-        data["full_name"],
+        data["full_name"]
     ))
     conn.commit()
+    cur.close()
+    conn.close()
 
 # ================== SUB CHECK ==================
 async def check_subscription(user_id: int, bot) -> bool:
@@ -130,6 +148,8 @@ async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================== MAIN ==================
 def main():
+    create_table_if_not_exists()
+
     app = ApplicationBuilder().token(TOKEN).build()
 
     conv = ConversationHandler(
