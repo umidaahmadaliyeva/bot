@@ -47,10 +47,22 @@ SCHOOL, CLASS_GRADE, FULL_NAME = range(3)
 # ================== GOOGLE SHEETS ==================
 def init_sheet():
     creds_dict = json.loads(GOOGLE_CREDS)
-    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+
+    # 🟢 Bu yerda Drive scope qo'shildi (muammo shu edi)
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
+
     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     client = gspread.authorize(creds)
-    return client.open(SPREADSHEET_NAME).worksheet(SHEET_NAME)
+
+    # Agar spreadsheet topilmasa xato bersin
+    try:
+        return client.open(SPREADSHEET_NAME).worksheet(SHEET_NAME)
+    except Exception as e:
+        logger.error("Google Sheet ochib bo'lmadi: %s", e)
+        raise
 
 sheet = init_sheet()
 
