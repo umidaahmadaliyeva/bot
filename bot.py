@@ -1,6 +1,5 @@
 import logging
 import os
-import json
 import datetime
 
 from telegram import (
@@ -19,22 +18,16 @@ from telegram.ext import (
     filters,
 )
 
-import gspread
-from google.oauth2.service_account import Credentials
+import psycopg2
 
 # ================== ENV ==================
 TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_USERNAME = "@kh_journey"
+DB_URL = os.getenv("DB_URL")  # Railway dagi PostgreSQL URL
 
-SPREADSHEET_NAME = os.getenv("SPREADSHEET_NAME")  # Google Sheet nomi
-SHEET_NAME = os.getenv("SHEET_NAME")              # List (tab) nomi
-GOOGLE_CREDS = os.getenv("GOOGLE_CREDS")          # credentials.json (1 qator)
-
-if not all([TOKEN, SPREADSHEET_NAME, SHEET_NAME, GOOGLE_CREDS]):
+if not all([TOKEN, CHANNEL_USERNAME, DB_URL]):
     print("BOT_TOKEN =", TOKEN)
-    print("SPREADSHEET_NAME =", SPREADSHEET_NAME)
-    print("SHEET_NAME =", SHEET_NAME)
-    print("GOOGLE_CREDS bor-mi =", bool(GOOGLE_CREDS))
+    print("DB_URL =", DB_URL)
     raise RuntimeError("Environment variables to‘liq emas!")
 
 # ================== LOG ==================
@@ -44,37 +37,22 @@ logger = logging.getLogger(__name__)
 # ================== STATES ==================
 SCHOOL, CLASS_GRADE, FULL_NAME = range(3)
 
-# ================== GOOGLE SHEETS ==================
-def init_sheet():
-    creds_dict = json.loads(GOOGLE_CREDS)
+# ================== DATABASE ==================
+conn = psycopg2.connect(DB_URL)
+cursor = conn.cursor()
 
-    # 🟢 Bu yerda Drive scope qo'shildi (muammo shu edi)
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
-    ]
-
-    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-    client = gspread.authorize(creds)
-
-    # Agar spreadsheet topilmasa xato bersin
-    try:
-        return client.open(SPREADSHEET_NAME).worksheet(SHEET_NAME)
-    except Exception as e:
-        logger.error("Google Sheet ochib bo'lmadi: %s", e)
-        raise
-
-sheet = init_sheet()
-
-def save_to_sheet(data: dict):
-    sheet.append_row([
-        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+def save_to_db(data: dict):
+    cursor.execute("""
+        INSERT INTO users (telegram_id, username, school, class_grade, full_name)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (
         data["telegram_id"],
         data.get("username", ""),
         data["school"],
         data["class_grade"],
         data["full_name"],
-    ])
+    ))
+    conn.commit()
 
 # ================== SUB CHECK ==================
 async def check_subscription(user_id: int, bot) -> bool:
@@ -143,7 +121,7 @@ async def receive_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["full_name"] = update.message.text.strip()
-    save_to_sheet(context.user_data)
+    save_to_db(context.user_data)
 
     await update.message.reply_text(
         "✅ Ma’lumotlaringiz saqlandi.\nOlimpiadada omad! 🍀"
@@ -171,5 +149,5 @@ def main():
     logger.info("Bot ishga tushdi 🚀")
     app.run_polling()
 
-if __name__ == "__bot__":
-    bot()
+if __name__ == "__main__":
+    main()
