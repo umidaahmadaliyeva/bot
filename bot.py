@@ -88,7 +88,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(
                 "📢 Kanalga obuna bo‘lish",
-                url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}"
+                url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@kh_journey')}"
             )],
             [InlineKeyboardButton("✅ Tekshirish", callback_data="check_sub")]
         ])
