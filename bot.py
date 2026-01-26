@@ -153,5 +153,5 @@ def main():
     logger.info("Bot ishga tushdi 🚀")
     app.run_polling()
 
-if __name__ == "__main__":
-    main()
+if __name__ == "__bot__":
+    bot()
