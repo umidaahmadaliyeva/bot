@@ -1,7 +1,5 @@
 import logging
 import os
-import datetime
-import psycopg2
 import requests
 
 from telegram import (
@@ -24,12 +22,11 @@ from telegram.ext import (
 TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_USERNAME = "@kh_journey"
 
-DB_URL = os.getenv("DB_URL")
-GOOGLE_SCRIPT_URL = os.getenv("GOOGLE_SCRIPT_URL")
+GOOGLE_SCRIPT_URL = os.getenv("GOOGLE_SCRIPT_URL")  
+# masalan: https://script.google.com/macros/s/AKfycbx.../exec
 
-if not all([TOKEN, DB_URL, GOOGLE_SCRIPT_URL]):
+if not all([TOKEN, GOOGLE_SCRIPT_URL]):
     print("BOT_TOKEN =", TOKEN)
-    print("DB_URL =", DB_URL)
     print("GOOGLE_SCRIPT_URL =", GOOGLE_SCRIPT_URL)
     raise RuntimeError("Environment variables to‘liq emas!")
 
@@ -40,53 +37,17 @@ logger = logging.getLogger(__name__)
 # ================== STATES ==================
 SCHOOL, CLASS_GRADE, FULL_NAME = range(3)
 
-# ================== POSTGRES ==================
-def create_table_if_not_exists():
-    conn = psycopg2.connect(DB_URL)
-    cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            telegram_id BIGINT NOT NULL,
-            username TEXT,
-            school TEXT,
-            class_grade TEXT,
-            full_name TEXT
-        );
-    """)
-    conn.commit()
-    cur.close()
-    conn.close()
-
-def save_to_db(data: dict):
-    conn = psycopg2.connect(DB_URL)
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO users (telegram_id, username, school, class_grade, full_name)
-        VALUES (%s, %s, %s, %s, %s)
-    """, (
-        data["telegram_id"],
-        data.get("username", ""),
-        data["school"],
-        data["class_grade"],
-        data["full_name"]
-    ))
-    conn.commit()
-    cur.close()
-    conn.close()
-
-# ================== GOOGLE SHEET ==================
-def save_to_google(data: dict):
-    payload = {
-        "telegram_id": data["telegram_id"],
-        "username": data.get("username", ""),
-        "school": data["school"],
-        "class_grade": data["class_grade"],
-        "full_name": data["full_name"],
-    }
-
-    response = requests.post(GOOGLE_SCRIPT_URL, json=payload, timeout=10)
-    logger.info("Google Script response: %s", response.text)
+# ================== GOOGLE SHEETS ==================
+def send_to_google_sheets(data: dict):
+    try:
+        response = requests.post(
+            GOOGLE_SCRIPT_URL,
+            json=data,
+            timeout=10
+        )
+        logger.info("Sheets response: %s", response.text)
+    except Exception as e:
+        logger.error("Sheets error: %s", e)
 
 # ================== SUB CHECK ==================
 async def check_subscription(user_id: int, bot) -> bool:
@@ -156,11 +117,15 @@ async def receive_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["full_name"] = update.message.text.strip()
 
-    # DATABASE ga saqlash
-    save_to_db(context.user_data)
+    data = {
+        "telegram_id": context.user_data["telegram_id"],
+        "username": context.user_data.get("username", ""),
+        "school": context.user_data["school"],
+        "class_grade": context.user_data["class_grade"],
+        "full_name": context.user_data["full_name"],
+    }
 
-    # GOOGLE SHEETS ga saqlash
-    save_to_google(context.user_data)
+    send_to_google_sheets(data)
 
     await update.message.reply_text(
         "✅ Ma’lumotlaringiz saqlandi.\nOlimpiadada omad! 🍀"
@@ -169,8 +134,6 @@ async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================== MAIN ==================
 def main():
-    create_table_if_not_exists()
-
     app = ApplicationBuilder().token(TOKEN).build()
 
     conv = ConversationHandler(
