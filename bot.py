@@ -25,6 +25,10 @@ CHANNEL_USERNAME = "@kh_journey"
 GOOGLE_SCRIPT_URL = os.getenv("GOOGLE_SCRIPT_URL")  
 # masalan: https://script.google.com/macros/s/AKfycbx.../exec
 
+# ====== 1) URL /exec bilan tugashini tekshiramiz ======
+if GOOGLE_SCRIPT_URL and not GOOGLE_SCRIPT_URL.endswith("/exec"):
+    GOOGLE_SCRIPT_URL = GOOGLE_SCRIPT_URL.rstrip("/") + "/exec"
+
 if not all([TOKEN, GOOGLE_SCRIPT_URL]):
     print("BOT_TOKEN =", TOKEN)
     print("GOOGLE_SCRIPT_URL =", GOOGLE_SCRIPT_URL)
@@ -45,7 +49,8 @@ def send_to_google_sheets(data: dict):
             json=data,
             timeout=10
         )
-        logger.info("Sheets response: %s", response.text)
+        logger.info("Sheets response status: %s", response.status_code)
+        logger.info("Sheets response text: %s", response.text)
     except Exception as e:
         logger.error("Sheets error: %s", e)
 
