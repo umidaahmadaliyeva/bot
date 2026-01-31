@@ -5,7 +5,7 @@ from telegram import (
     Update,
     ReplyKeyboardRemove,
     InlineKeyboardButton,
-    InlineKeyboardMarkup,
+    InlineKeyboardMarkup
 )
 from telegram.ext import (
     ApplicationBuilder,
@@ -14,16 +14,17 @@ from telegram.ext import (
     ConversationHandler,
     MessageHandler,
     CallbackQueryHandler,
-    filters,
+    filters
 )
 
 # ================== ENV ==================
 TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@kh_journey")
-DATA_CHANNEL_ID = os.getenv("DATA_CHANNEL_ID")
 
-if not all([TOKEN, DATA_CHANNEL_ID]):
-    raise RuntimeError("BOT_TOKEN yoki DATA_CHANNEL_ID yo‘q!")
+# ❗ MAʼLUMOT TASHLANADIGAN KANAL (KOD ICHIDA)
+DATA_CHANNEL = "@kh_journey"   # ⬅️ shu yerga kanal username
+
+if not TOKEN:
+    raise RuntimeError("BOT_TOKEN topilmadi!")
 
 # ================== LOG ==================
 logging.basicConfig(level=logging.INFO)
@@ -35,27 +36,10 @@ SCHOOL, CLASS_GRADE, FULL_NAME = range(3)
 # ================== SUB CHECK ==================
 async def check_subscription(user_id: int, bot) -> bool:
     try:
-        member = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
+        member = await bot.get_chat_member(DATA_CHANNEL, user_id)
         return member.status in ("member", "administrator", "creator")
     except Exception:
         return False
-
-# ================== SEND TO CHANNEL ==================
-async def send_to_channel(bot, data: dict):
-    message = (
-        "🧾 *Yangi ro‘yxatdan o‘tish*\n\n"
-        f"👤 Ism: {data['full_name']}\n"
-        f"🏫 Maktab: {data['school']}\n"
-        f"📚 Sinf: {data['class_grade']}\n"
-        f"🆔 Telegram ID: `{data['telegram_id']}`\n"
-        f"👤 Username: @{data['username']}" if data.get("username") else "—"
-    )
-
-    await bot.send_message(
-        chat_id=int(DATA_CHANNEL_ID),
-        text=message,
-        parse_mode="Markdown"
-    )
 
 # ================== START ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -63,14 +47,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not await check_subscription(user.id, context.bot):
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(
-                "📢 Kanalga obuna bo‘lish",
-                url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}"
-            )],
+            [
+                InlineKeyboardButton(
+                    "📢 Kanalga obuna bo‘lish",
+                    url=f"https://t.me/{DATA_CHANNEL.lstrip('@')}"
+                )
+            ],
             [InlineKeyboardButton("✅ Tekshirish", callback_data="check_sub")]
         ])
         await update.message.reply_text(
-            "❗ Botdan foydalanish uchun avval kanalga obuna bo‘ling:",
+            "❗ Botdan foydalanish uchun kanalga obuna bo‘ling:",
             reply_markup=keyboard
         )
         return ConversationHandler.END
@@ -117,7 +103,23 @@ async def receive_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["full_name"] = update.message.text.strip()
 
-    await send_to_channel(context.bot, context.user_data)
+    data = context.user_data
+
+    text = (
+        "🧾 *Yangi ishtirokchi*\n\n"
+        f"👤 Ism: {data['full_name']}\n"
+        f"🏫 Maktab: {data['school']}\n"
+        f"📚 Sinf: {data['class_grade']}\n"
+        f"🆔 Telegram ID: `{data['telegram_id']}`\n"
+        f"👤 Username: @{data['username']}" if data.get("username") else "—"
+    )
+
+    # 🔥 KANALGA YUBORISH
+    await context.bot.send_message(
+        chat_id=DATA_CHANNEL,
+        text=text,
+        parse_mode="Markdown"
+    )
 
     await update.message.reply_text(
         "✅ Ma’lumotlaringiz qabul qilindi.\nOmad! 🍀"
