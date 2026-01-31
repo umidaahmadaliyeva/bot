@@ -127,7 +127,8 @@ async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Kanalga yuborishda xato: {e}")
 
     await update.message.reply_text(
-        "✅ Ma’lumotlaringiz qabul qilindi.\nOmad! 🍀"
+        "✅ Ma’lumotlaringiz qabul qilindi.\nOmad! 🍀 \nQo'shimcha ma'lumot uchun 📞 +998 77 256 19 26
+➡️@Mathematics26_A"
     )
     return ConversationHandler.END
 
