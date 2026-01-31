@@ -113,6 +113,7 @@ async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🏫 Maktab: {data['school']}\n"
         f"📚 Sinf: {data['class_grade']}\n"
         f"🆔 Telegram ID: `{data['telegram_id']}`\n"
+        f"👤 Username: @{data['username']}" if data.get("username") 
     )
 
     # 🔥 AYNAN @datapiramida KANALIGA YUBORISH
