@@ -1,19 +1,29 @@
 import logging
 import os
-import requests
 
-from telegram import Update, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, ConversationHandler, MessageHandler, CallbackQueryHandler, filters
+from telegram import (
+    Update,
+    ReplyKeyboardRemove,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    ContextTypes,
+    ConversationHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    filters,
+)
 
 # ================== ENV ==================
 TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_USERNAME = "@kh_journey"
-GOOGLE_SCRIPT_URL = os.getenv("GOOGLE_SCRIPT_URL")  # Shu yerga env variable kiradi
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@kh_journey")
+DATA_CHANNEL_ID = os.getenv("DATA_CHANNEL_ID")
 
-if not all([TOKEN, GOOGLE_SCRIPT_URL]):
-    print("BOT_TOKEN =", TOKEN)
-    print("GOOGLE_SCRIPT_URL =", GOOGLE_SCRIPT_URL)
-    raise RuntimeError("Environment variables to‘liq emas!")
+if not all([TOKEN, DATA_CHANNEL_ID]):
+    raise RuntimeError("BOT_TOKEN yoki DATA_CHANNEL_ID yo‘q!")
 
 # ================== LOG ==================
 logging.basicConfig(level=logging.INFO)
@@ -21,15 +31,6 @@ logger = logging.getLogger(__name__)
 
 # ================== STATES ==================
 SCHOOL, CLASS_GRADE, FULL_NAME = range(3)
-
-# ================== GOOGLE SHEETS ==================
-def send_to_google_sheets(data: dict):
-    try:
-        response = requests.post(GOOGLE_SCRIPT_URL, json=data, timeout=10)
-        logger.info("Sheets response status: %s", response.status_code)
-        logger.info("Sheets response text: %s", response.text)
-    except Exception as e:
-        logger.error("Sheets error: %s", e)
 
 # ================== SUB CHECK ==================
 async def check_subscription(user_id: int, bot) -> bool:
@@ -39,13 +40,33 @@ async def check_subscription(user_id: int, bot) -> bool:
     except Exception:
         return False
 
+# ================== SEND TO CHANNEL ==================
+async def send_to_channel(bot, data: dict):
+    message = (
+        "🧾 *Yangi ro‘yxatdan o‘tish*\n\n"
+        f"👤 Ism: {data['full_name']}\n"
+        f"🏫 Maktab: {data['school']}\n"
+        f"📚 Sinf: {data['class_grade']}\n"
+        f"🆔 Telegram ID: `{data['telegram_id']}`\n"
+        f"👤 Username: @{data['username']}" if data.get("username") else "—"
+    )
+
+    await bot.send_message(
+        chat_id=int(DATA_CHANNEL_ID),
+        text=message,
+        parse_mode="Markdown"
+    )
+
 # ================== START ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
 
     if not await check_subscription(user.id, context.bot):
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📢 Kanalga obuna bo‘lish", url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}")],
+            [InlineKeyboardButton(
+                "📢 Kanalga obuna bo‘lish",
+                url=f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}"
+            )],
             [InlineKeyboardButton("✅ Tekshirish", callback_data="check_sub")]
         ])
         await update.message.reply_text(
@@ -58,7 +79,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["telegram_id"] = user.id
     context.user_data["username"] = user.username
 
-    await update.message.reply_text("Siz qaysi maktab o‘quvchisisiz?", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text(
+        "Siz qaysi maktab o‘quvchisisiz?",
+        reply_markup=ReplyKeyboardRemove()
+    )
     return SCHOOL
 
 # ================== CALLBACK ==================
@@ -74,7 +98,9 @@ async def check_sub_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data["telegram_id"] = query.from_user.id
     context.user_data["username"] = query.from_user.username
 
-    await query.message.reply_text("✅ Obuna tasdiqlandi!\n\nSiz qaysi maktab o‘quvchisisiz?")
+    await query.message.reply_text(
+        "✅ Obuna tasdiqlandi!\n\nSiz qaysi maktab o‘quvchisisiz?"
+    )
     return SCHOOL
 
 # ================== STEPS ==================
@@ -91,17 +117,11 @@ async def receive_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["full_name"] = update.message.text.strip()
 
-    data = {
-        "telegram_id": context.user_data["telegram_id"],
-        "username": context.user_data.get("username", ""),
-        "school": context.user_data["school"],
-        "class_grade": context.user_data["class_grade"],
-        "full_name": context.user_data["full_name"],
-    }
+    await send_to_channel(context.bot, context.user_data)
 
-    send_to_google_sheets(data)
-
-    await update.message.reply_text("✅ Ma’lumotlaringiz saqlandi.\nOlimpiadada omad! 🍀")
+    await update.message.reply_text(
+        "✅ Ma’lumotlaringiz qabul qilindi.\nOmad! 🍀"
+    )
     return ConversationHandler.END
 
 # ================== MAIN ==================
