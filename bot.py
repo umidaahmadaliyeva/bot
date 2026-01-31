@@ -20,8 +20,11 @@ from telegram.ext import (
 # ================== ENV ==================
 TOKEN = os.getenv("BOT_TOKEN")
 
-# ❗ MAʼLUMOT TASHLANADIGAN KANAL (KOD ICHIDA)
-DATA_CHANNEL = "@kh_journey"   # ⬅️ shu yerga kanal username
+# 🔔 OBUNA TEKSHIRILADIGAN KANAL
+SUBSCRIBE_CHANNEL = "@kh_journey"
+
+# 🧾 MAʼLUMOT TASHLANADIGAN KANAL
+DATA_CHANNEL = "@datapiramida"
 
 if not TOKEN:
     raise RuntimeError("BOT_TOKEN topilmadi!")
@@ -36,7 +39,7 @@ SCHOOL, CLASS_GRADE, FULL_NAME = range(3)
 # ================== SUB CHECK ==================
 async def check_subscription(user_id: int, bot) -> bool:
     try:
-        member = await bot.get_chat_member(DATA_CHANNEL, user_id)
+        member = await bot.get_chat_member(SUBSCRIBE_CHANNEL, user_id)
         return member.status in ("member", "administrator", "creator")
     except Exception:
         return False
@@ -50,7 +53,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [
                 InlineKeyboardButton(
                     "📢 Kanalga obuna bo‘lish",
-                    url=f"https://t.me/{DATA_CHANNEL.lstrip('@kh_journey')}"
+                    url=f"https://t.me/{SUBSCRIBE_CHANNEL.lstrip('@')}"
                 )
             ],
             [InlineKeyboardButton("✅ Tekshirish", callback_data="check_sub")]
@@ -102,7 +105,6 @@ async def receive_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["full_name"] = update.message.text.strip()
-
     data = context.user_data
 
     text = (
@@ -114,12 +116,15 @@ async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"👤 Username: @{data['username']}" if data.get("username") else "—"
     )
 
-    # 🔥 KANALGA YUBORISH
-    await context.bot.send_message(
-        chat_id=DATA_CHANNEL,
-        text=text,
-        parse_mode="Markdown"
-    )
+    # 🔥 AYNAN @datapiramida KANALIGA YUBORISH
+    try:
+        await context.bot.send_message(
+            chat_id=DATA_CHANNEL,
+            text=text,
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        logger.error(f"Kanalga yuborishda xato: {e}")
 
     await update.message.reply_text(
         "✅ Ma’lumotlaringiz qabul qilindi.\nOmad! 🍀"
