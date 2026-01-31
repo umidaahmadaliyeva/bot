@@ -50,7 +50,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [
                 InlineKeyboardButton(
                     "📢 Kanalga obuna bo‘lish",
-                    url=f"https://t.me/{DATA_CHANNEL.lstrip('@')}"
+                    url=f"https://t.me/{DATA_CHANNEL.lstrip('@kh_journey')}"
                 )
             ],
             [InlineKeyboardButton("✅ Tekshirish", callback_data="check_sub")]
