@@ -131,7 +131,7 @@ async def receive_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(DATA_CHANNEL, text, parse_mode="Markdown")
 
     await update.message.reply_text(
-        "✅ Ma’lumotlaringiz qabul qilindi!",
+        "✅ Ma’lumotlaringiz qabul qilindi! Omad! 🍀\nQo'shimcha ma'lumot uchun 📞 +998 77 256 19 26 / +998 99 977 37 07\n➡️@Mathematics26_A",
         reply_markup=ReplyKeyboardRemove(),
     )
 
