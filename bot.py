@@ -5,9 +5,7 @@ from telegram import (
     Update,
     ReplyKeyboardRemove,
     InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    KeyboardButton,
-    ReplyKeyboardMarkup
+    InlineKeyboardMarkup
 )
 from telegram.ext import (
     ApplicationBuilder,
@@ -23,7 +21,7 @@ from telegram.ext import (
 TOKEN = os.getenv("BOT_TOKEN")
 
 # 🔔 OBUNA TEKSHIRILADIGAN KANAL
-SUBSCRIBE_CHANNEL = "@kh_journey"
+SUBSCRIBE_CHANNEL = "@piramida_2024"
 
 # 🧾 MAʼLUMOT TASHLANADIGAN KANAL
 DATA_CHANNEL = "@datapiramida"
@@ -36,7 +34,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ================== STATES ==================
-SCHOOL, CLASS_GRADE, FULL_NAME, PHONE = range(4)
+SCHOOL, CLASS_GRADE, FULL_NAME = range(3)
 
 # ================== SUB CHECK ==================
 async def check_subscription(user_id: int, bot) -> bool:
@@ -55,7 +53,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [
                 InlineKeyboardButton(
                     "📢 Kanalga obuna bo‘lish",
-                    url=f"https://t.me/{SUBSCRIBE_CHANNEL.lstrip('@')}"
+                    url=f"https://t.me/{SUBSCRIBE_CHANNEL.lstrip('@piramida_2024')}"
                 )
             ],
             [InlineKeyboardButton("✅ Tekshirish", callback_data="check_sub")]
@@ -107,29 +105,6 @@ async def receive_class(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["full_name"] = update.message.text.strip()
-
-    keyboard = ReplyKeyboardMarkup(
-        [[KeyboardButton("📞 Telefon raqamni yuborish", request_contact=True)]],
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
-
-    await update.message.reply_text(
-        "📱 Iltimos, telefon raqamingizni yuboring:",
-        reply_markup=keyboard
-    )
-    return PHONE
-
-async def receive_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    contact = update.message.contact
-
-    if not contact or contact.user_id != update.effective_user.id:
-        await update.message.reply_text(
-            "❌ Faqat O‘Z telefon raqamingizni yuboring.",
-        )
-        return PHONE
-
-    context.user_data["phone"] = contact.phone_number
     data = context.user_data
 
     text = (
@@ -137,20 +112,23 @@ async def receive_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"👤 Ism: {data['full_name']}\n"
         f"🏫 Maktab: {data['school']}\n"
         f"📚 Sinf: {data['class_grade']}\n"
-        f"📱 Telefon: {data['phone']}\n"
         f"🆔 Telegram ID: `{data['telegram_id']}`\n"
-        f"👤 Username: @{data['username']}" if data.get("username") else "—"
+        f"👤 Username: @{data['username']}" if data.get("username") 
     )
 
-    await context.bot.send_message(
-        chat_id=DATA_CHANNEL,
-        text=text,
-        parse_mode="Markdown"
-    )
+    # 🔥 AYNAN @datapiramida KANALIGA YUBORISH
+    try:
+        await context.bot.send_message(
+            chat_id=DATA_CHANNEL,
+            text=text,
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        logger.error(f"Kanalga yuborishda xato: {e}")
 
     await update.message.reply_text(
-        "✅ Ma’lumotlaringiz qabul qilindi.\nOmad! 🍀",
-        reply_markup=ReplyKeyboardRemove()
+        "✅ Ma’lumotlaringiz qabul qilindi.\nOmad! 🍀 \nQo'shimcha ma'lumot uchun 📞 +998 77 256 19 26
+➡️@Mathematics26_A"
     )
     return ConversationHandler.END
 
@@ -164,7 +142,6 @@ def main():
             SCHOOL: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_school)],
             CLASS_GRADE: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_class)],
             FULL_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_name)],
-            PHONE: [MessageHandler(filters.CONTACT, receive_phone)],
         },
         fallbacks=[],
         allow_reentry=True,
